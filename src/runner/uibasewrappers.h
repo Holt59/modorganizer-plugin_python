@@ -102,6 +102,13 @@ public:
 
   }
 
+  void onGameInfoAvailable(boost::python::object callback) {
+    m_GameInfoHandler = callback;
+    connect(m_Wrapped, SIGNAL(gameInfoAvailable(QString, QVariant, QVariant)),
+        this, SLOT(gameInfoAvailable(QString, QVariant, QVariant)),
+        Qt::UniqueConnection);
+  }
+
   void onRequestFailed(boost::python::object callback) {
     m_FailedHandler = callback;
     connect(m_Wrapped, SIGNAL(requestFailed(int,int,QVariant,QString)),
@@ -208,6 +215,26 @@ private Q_SLOTS:
     }
   }
 
+  void gameInfoAvailable(QString gameName, QVariant userData, const QVariant resultData)
+  {
+    try {
+      if (m_GameInfoHandler.is_none()) {
+        qCritical("no handler connected");
+        return;
+      }
+      try {
+        GILock lock;
+        m_GameInfoHandler(gameName, userData, resultData);
+      } catch (const boost::python::error_already_set&) {
+        reportPythonError();
+      }
+    } catch (const std::exception & e) {
+        qCritical("failed to report event: %s", e.what());
+    } catch (...) {
+        qCritical("failed to report event");
+    }
+  }
+
   void requestFailed(int modID, int fileID, QVariant userData, const QString &errorMessage)
   {
     try {
@@ -226,6 +253,7 @@ private:
   boost::python::object m_FileInfoHandler;
   boost::python::object m_EndorsementToggledHandler;
   boost::python::object m_TrackingToggledHandler;
+  boost::python::object m_GameInfoHandler;
   boost::python::object m_FailedHandler;
 
 };
