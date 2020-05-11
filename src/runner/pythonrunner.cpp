@@ -32,8 +32,6 @@
 #include "variant_helper.h"
 #include "converters.h"
 
-MOBase::IOrganizer *s_Organizer = nullptr;
-
 using namespace MOBase;
 
 namespace bpy = boost::python;
@@ -671,35 +669,37 @@ BOOST_PYTHON_MODULE(mobase)
     ;
 
   bpy::class_<IPluginInstallerCustomWrapper, boost::noncopyable>("IPluginInstallerCustom")
-      .def("isArchiveSupported", &IPluginInstallerCustom::isArchiveSupported)
-      .def("supportedExtensions", &IPluginInstallerCustom::supportedExtensions)
-      .def("install", &IPluginInstallerCustom::install)
-      .def("_parentWidget", &IPluginInstallerSimpleWrapper::parentWidget, bpy::return_value_policy<bpy::return_by_value>())
-      .def("_manager", &IPluginInstallerCustomWrapper::manager, bpy::return_value_policy<bpy::reference_existing_object>())
-      ;
+    // Needs to add both otherwize boost does not understanda:    
+    .def("isArchiveSupported", &IPluginInstaller::isArchiveSupported)
+    .def("isArchiveSupported", &IPluginInstallerCustom::isArchiveSupported)
+    .def("supportedExtensions", &IPluginInstallerCustom::supportedExtensions)
+    .def("install", &IPluginInstallerCustom::install)
+    .def("_parentWidget", &IPluginInstallerSimpleWrapper::parentWidget, bpy::return_value_policy<bpy::return_by_value>())
+    .def("_manager", &IPluginInstallerCustomWrapper::manager, bpy::return_value_policy<bpy::reference_existing_object>())
+    ;
 
   bpy::class_<IPluginModPageWrapper, boost::noncopyable>("IPluginModPage")
-      .def("displayName", bpy::pure_virtual(&IPluginModPage::displayName))
-      .def("icon", bpy::pure_virtual(&IPluginModPage::icon))
-      .def("pageURL", bpy::pure_virtual(&IPluginModPage::pageURL))
-      .def("useIntegratedBrowser", bpy::pure_virtual(&IPluginModPage::useIntegratedBrowser))
-      .def("handlesDownload", bpy::pure_virtual(&IPluginModPage::handlesDownload))
-      .def("setParentWidget", &IPluginModPage::setParentWidget, &IPluginModPageWrapper::setParentWidget_Default)
-      .def("_parentWidget", &IPluginModPageWrapper::parentWidget, bpy::return_value_policy<bpy::return_by_value>())
-      ;
+    .def("displayName", bpy::pure_virtual(&IPluginModPage::displayName))
+    .def("icon", bpy::pure_virtual(&IPluginModPage::icon))
+    .def("pageURL", bpy::pure_virtual(&IPluginModPage::pageURL))
+    .def("useIntegratedBrowser", bpy::pure_virtual(&IPluginModPage::useIntegratedBrowser))
+    .def("handlesDownload", bpy::pure_virtual(&IPluginModPage::handlesDownload))
+    .def("setParentWidget", &IPluginModPage::setParentWidget, &IPluginModPageWrapper::setParentWidget_Default)
+    .def("_parentWidget", &IPluginModPageWrapper::parentWidget, bpy::return_value_policy<bpy::return_by_value>())
+    ;
 
   bpy::class_<IPluginPreviewWrapper, bpy::bases<IPlugin>, boost::noncopyable>("IPluginPreview")
-      .def("supportedExtensions", bpy::pure_virtual(&IPluginPreview::supportedExtensions))
-      .def("genFilePreview", bpy::pure_virtual(&IPluginPreview::genFilePreview), bpy::return_value_policy<bpy::return_by_value>())
-      ;
+    .def("supportedExtensions", bpy::pure_virtual(&IPluginPreview::supportedExtensions))
+    .def("genFilePreview", bpy::pure_virtual(&IPluginPreview::genFilePreview), bpy::return_value_policy<bpy::return_by_value>())
+    ;
 
   bpy::class_<IPluginToolWrapper, bpy::bases<IPlugin>, boost::noncopyable>("IPluginTool")
-      .def("displayName", bpy::pure_virtual(&IPluginTool::displayName))
-      .def("tooltip", bpy::pure_virtual(&IPluginTool::tooltip))
-      .def("icon", bpy::pure_virtual(&IPluginTool::icon))
-      .def("setParentWidget", &IPluginTool::setParentWidget, &IPluginToolWrapper::setParentWidget_Default)
-      .def("_parentWidget", &IPluginToolWrapper::parentWidget, bpy::return_value_policy<bpy::return_by_value>())
-      ;
+    .def("displayName", bpy::pure_virtual(&IPluginTool::displayName))
+    .def("tooltip", bpy::pure_virtual(&IPluginTool::tooltip))
+    .def("icon", bpy::pure_virtual(&IPluginTool::icon))
+    .def("setParentWidget", &IPluginTool::setParentWidget, &IPluginToolWrapper::setParentWidget_Default)
+    .def("_parentWidget", &IPluginToolWrapper::parentWidget, bpy::return_value_policy<bpy::return_by_value>())
+    ;
 
   registerGameFeaturesPythonConverters();
 }
@@ -722,11 +722,6 @@ private:
   void initPath();
 
   /**
-   * @brief Ensure that the given folder is in sys.path.
-   */
-  void ensureFolderInPath(QString folder);
-
-  /**
    * @brief Append the underlying object of the given python object to the
    *     interface list if it is an instance (pointer) of the given type.
    *
@@ -745,7 +740,6 @@ private:
 
 IPythonRunner* CreatePythonRunner(MOBase::IOrganizer* moInfo, const QString& pythonDir)
 {
-  s_Organizer = moInfo;
   PythonRunner* result = new PythonRunner(moInfo);
   if (result->initPython(pythonDir)) {
     return result;
@@ -872,17 +866,6 @@ void PythonRunner::initPath()
   Py_SetPath(paths.join(';').toStdWString().c_str());
 }
 
-void PythonRunner::ensureFolderInPath(QString folder) {
-  bpy::object sys = bpy::import("sys");
-  bpy::list sysPath = bpy::extract<bpy::list>(sys.attr("path"));
-
-  // Converting to QStringList for Qt::CaseInsensitive and because .index()
-  // raise an exception:
-  QStringList currentPath = bpy::extract<QStringList>(sysPath);
-  if (!currentPath.contains(folder, Qt::CaseInsensitive)) {
-    sysPath.insert(0, folder);
-  }
-}
 
 
 
@@ -905,21 +888,11 @@ QList<QObject*> PythonRunner::instantiate(const QString &pluginName)
     moduleNamespace["sys"] = sys;
     moduleNamespace["mobase"] = bpy::import("mobase");
 
-    if (pluginName.endsWith(".py")) {
-      std::string temp = ToString(pluginName);
-      if (handled_exec_file(temp.c_str(), moduleNamespace)) {
-        throw pyexcept::PythonError();
-      }
-      m_PythonObjects[pluginName] = moduleNamespace["createPlugin"]();
+    std::string temp = ToString(pluginName);
+    if (handled_exec_file(temp.c_str(), moduleNamespace)) {
+      throw pyexcept::PythonError();
     }
-    else {
-      // Retrieve the module name:
-      QStringList parts = pluginName.split("/");
-      std::string moduleName = ToString(parts.takeLast());
-      ensureFolderInPath(parts.join("/"));
-      bpy::object createPlugin = bpy::import(moduleName.c_str()).attr("createPlugin");
-      m_PythonObjects[pluginName] = createPlugin();
-    }
+    m_PythonObjects[pluginName] = moduleNamespace["createPlugin"]();
 
     bpy::object pluginObj = m_PythonObjects[pluginName];
     QList<QObject *> interfaceList;
