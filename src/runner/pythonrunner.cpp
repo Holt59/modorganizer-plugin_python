@@ -143,6 +143,8 @@ BOOST_PYTHON_MODULE(mobase)
   //
   // Class declarations:
   //
+  
+  using doc = utils::doc;
 
   bpy::enum_<MOBase::VersionInfo::ReleaseType>("ReleaseType")
       .value("final", MOBase::VersionInfo::RELEASE_FINAL)
@@ -174,20 +176,55 @@ BOOST_PYTHON_MODULE(mobase)
       .value("LITERAL", MOBase::VersionInfo::SCHEME_LITERAL)
       ;
 
-  bpy::class_<VersionInfo>("VersionInfo")
-      .def(bpy::init<QString>())
-      .def(bpy::init<QString, VersionInfo::VersionScheme>())
-      .def(bpy::init<int, int, int>())
-      .def(bpy::init<int, int, int, VersionInfo::ReleaseType>())
-      .def(bpy::init<int, int, int, int>())
-      .def(bpy::init<int, int, int, int, VersionInfo::ReleaseType>())
-      .def("clear", &VersionInfo::clear)
-      .def("parse", &VersionInfo::parse)
-      .def("canonicalString", &VersionInfo::canonicalString)
-      .def("displayString", &VersionInfo::displayString)
-      .def("isValid", &VersionInfo::isValid)
-      .def("scheme", &VersionInfo::scheme)
+  bpy::class_<VersionInfo>(
+    "VersionInfo", "Represents the version of a mod or plugin.")
+      .def(bpy::init<>("Construct an invalid VersionInfo."))
+
+      .def(bpy::init<QString, VersionInfo::VersionScheme>(
+        (bpy::arg("value"), bpy::arg("scheme") = VersionInfo::VersionScheme::SCHEME_DISCOVER),
+        doc("Construct a VersionInfo by parsing the given string according to the given scheme.")
+          .arg("value", "String to parse.")
+          .arg("scheme", "Scheme to use to parse the string.")))
+
+      .def(bpy::init<int, int, int, VersionInfo::ReleaseType>(
+        (bpy::args("major", "minor", "subminor"), bpy::arg("release_type") = VersionInfo::ReleaseType::RELEASE_FINAL), 
+        doc("Construct a VersionInfo using the given elements.")
+          .arg("major", "Major version.")
+          .arg("minor", "Minor version.")
+          .arg("subminor", "Subminor version.")
+          .arg("release_type", "Type of release.")))
+
+      .def(bpy::init<int, int, int, int, VersionInfo::ReleaseType>(
+        (bpy::args("major", "minor", "subminor", "subsubminor"), bpy::arg("release_type") = VersionInfo::ReleaseType::RELEASE_FINAL),
+        doc("Construct a VersionInfo using the given elements.")
+          .arg("major", "Major version.")
+          .arg("minor", "Minor version.")
+          .arg("subminor", "Subminor version.")
+          .arg("subsubminor", "Subsubminor version.")
+          .arg("release_type", "Type of release.")))
+
+      .def("clear", &VersionInfo::clear, "Resets this VersionInfo to an invalid version.")
+      .def("parse", &VersionInfo::parse, 
+        (bpy::arg("value"), bpy::arg("scheme") = VersionInfo::VersionScheme::SCHEME_DISCOVER, bpy::arg("manual_input") = false),
+        doc("Update this VersionInfo by parsing the given string using the given scheme.")
+          .arg("value", "String to parse.")
+          .arg("scheme", "Scheme to use to parse the string.")
+          .arg("manual_input", "True if the given string should be treated as user input.").value())
+
+      .def("canonicalString", &VersionInfo::canonicalString, 
+        doc().returns("A canonical string representing this version, that can be stored and then parsed using the parse() method.").value())
+
+      .def("displayString", &VersionInfo::displayString,
+        doc().returns("A string for display to the user. The returned string may not contain enough information to reconstruct this version info.").value())
+
+      .def("isValid", &VersionInfo::isValid,
+        doc().returns("True if this VersionInfo is valid, False otherwise.").value())
+
+      .def("scheme", &VersionInfo::scheme, 
+        doc().returns("The version scheme in effect for this VersionInfo.").value())
+
       .def("__str__", &VersionInfo::canonicalString)
+
       .def(bpy::self < bpy::self)
       .def(bpy::self > bpy::self)
       .def(bpy::self <= bpy::self)
@@ -196,7 +233,10 @@ BOOST_PYTHON_MODULE(mobase)
       .def(bpy::self == bpy::self)
       ;
 
-  bpy::class_<PluginSetting>("PluginSetting", bpy::init<const QString&, const QString&, const QVariant&>());
+  bpy::class_<PluginSetting>("PluginSetting", bpy::init<const QString&, const QString&, const QVariant&>())
+    .def_readwrite("key", &PluginSetting::key)
+    .def_readwrite("description", &PluginSetting::description)
+    .def_readwrite("default_value", &PluginSetting::defaultValue);
 
   bpy::class_<ExecutableInfo>("ExecutableInfo", bpy::init<const QString&, const QFileInfo&>())
       .def("withArgument", &ExecutableInfo::withArgument, bpy::return_self<>())

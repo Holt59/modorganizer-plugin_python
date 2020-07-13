@@ -195,6 +195,70 @@ namespace utils {
       , bpy::type_id<Container>());
   };
 
+  /**
+   * Helper class to generate docstrings.
+   *
+   */
+  class doc {
+  public:
+    doc() { }
+    doc(std::string const& str) : m_Value(str) { }
+
+    doc& arg(std::string const& name, std::string const& desc) {
+      m_Args.push_back({ name, desc });
+      return *this;
+    }
+
+    doc& returns(std::string const& desc) {
+      m_Returns = desc;
+      return *this;
+    }
+
+    doc& raises(std::string const& what, std::string const& desc) {
+      m_Raises.push_back({ what, desc });
+      return *this;
+    }
+
+    operator const char* () {
+      return value();
+    }
+
+    const char* value() {
+      m_Computed = "";
+      if (!m_Value.empty()) {
+        m_Computed = m_Value + "\n\n";
+      }
+      if (!m_Args.empty()) {
+        m_Computed += "Args:\n";
+        for (auto p : m_Args) {
+          m_Computed += "    " + p.first + ": " + p.second + "\n";
+        }
+        m_Computed += "\n";
+      }
+      if (!m_Returns.empty()) {
+        m_Computed += "Returns:\n    " + m_Returns + "\n";
+      }
+      if (!m_Raises.empty()) {
+        m_Computed += "Raises:\n";
+        for (auto p : m_Raises) {
+          m_Computed += "    " + p.first + ": " + p.second + "\n";
+        }
+        m_Computed += "\n";
+      }
+
+      return m_Computed.c_str();
+    }
+
+  private:
+    std::string m_Value;
+
+    std::vector<std::pair<std::string, std::string>> m_Args;
+    std::string m_Returns;
+    std::vector<std::pair<std::string, std::string>> m_Raises;
+
+    std::string m_Computed;
+  };
+
 }
 
 #endif
